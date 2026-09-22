@@ -9,7 +9,7 @@ $ helm upgrade \
     tailscale/tailscale-operator \
     --namespace=tailscale \
     --create-namespace \
-    --set-string oauth.clientId="<OAauth client ID>" \
+    --set-string oauth.clientId="<OAuth client ID>" \
     --set-string oauth.clientSecret="<OAuth client secret>" \
     --set-string apiServerProxyConfig.mode="noauth" \
     --set-string apiServerProxyConfig.mode="true" \
