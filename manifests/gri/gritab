@@ -41,6 +41,7 @@ wabi1750ps.internal.sgchsgch.net ver=2c  community=public   port=11610
 raritan.internal.sgchsgch.net ver=2c  community=public   port=11611
 DCPJ925N.ttj1.yude.jp ver=2c  community=public   port=11610
 nrt1con3.tail5b1c5.ts.net ver=2c  community=public
+nrt1con5.tail5b1c5.ts.net ver=2c  community=public
 nrt1con2.tail5b1c5.ts.net ver=2c  community=public
 nrt1con4.tail5b1c5.ts.net ver=2c  community=public
 kix1sh1.tail5b1c5.ts.net ver=2c  community=public
@@ -51,3 +52,7 @@ ttj1pbk1.tail5b1c5.ts.net ver=2c  community=public
 hnd1pbk1.tail5b1c5.ts.net ver=2c  community=public
 hnd2gw1.tun.y2e.org ver=2c  community=public
 izo1gw1.tun.y2e.org ver=2c  community=public
+ttj2gw1.tun.y2e.org ver=2c  community=public
+hnd1kwo1.tail5b1c5.ts.net ver=2c  community=public
+hnd1kwo2.tail5b1c5.ts.net ver=2c  community=public
+hnd1kwo3.tail5b1c5.ts.net ver=2c  community=public
