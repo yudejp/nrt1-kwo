@@ -7,5 +7,5 @@
 
 * sysdb から古いホストを削除する
     ```
-    $ sed -i '/_host:ibr1wstep1\.tail5b1c5\.ts\.net/d' /usr/local/gri/gra/.sysdb/sysdb.txt
+    $ perl -ni -e 'print if index($_, "_host:ibr1wstep1.tail5b1c5.ts.net") == -1' /usr/local/gri/gra/.sysdb/sysdb.txt
     ```
