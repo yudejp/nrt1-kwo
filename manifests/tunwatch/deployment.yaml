@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tunwatch
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tunwatch
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tunwatch
+    spec:
+      automountServiceAccountToken: false
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      # Eligible nodes must have a node_profiles entry for their host interfaces.
+      # A single replica monitors the segment visible from its scheduled node.
+      nodeSelector:
+        tunwatch.yude.github.io/sensor: "true"
+      terminationGracePeriodSeconds: 20
+      securityContext:
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: tunwatch
+          image: ghcr.io/yude/tunwatch:latest
+          imagePullPolicy: Always
+          args: ["-config", "/etc/tunwatch/config.json"]
+          env:
+            - name: TUNWATCH_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: TUNWATCH_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: tunwatch
+                  key: api-token
+            - name: TUNWATCH_DISCORD_WEBHOOK
+              valueFrom:
+                secretKeyRef:
+                  name: tunwatch
+                  key: discord-webhook
+                  optional: true
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            failureThreshold: 30
+            periodSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+          securityContext:
+            # UID 0 is required by Docker-compatible runtimes to activate NET_RAW.
+            # tunwatch drops all capabilities before serving HTTP.
+            runAsUser: 0
+            runAsGroup: 65532
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_RAW"]
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tunwatch
+              readOnly: true
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: config
+          configMap:
+            name: tunwatch-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: tunwatch

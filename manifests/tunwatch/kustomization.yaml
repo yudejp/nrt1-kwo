@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tunwatch
+
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - pvc.yaml
+
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/name: tunwatch
+      app.kubernetes.io/part-of: observability
+
+configMapGenerator:
+  - name: tunwatch-config
+    files:
+      - config.json
+
+images:
+  - name: ghcr.io/yude/tunwatch
+    newTag: sha-850197f3356f78277d687f52ced0dbef84653dec

@@ -1,0 +1,26 @@
+{
+  "listen": "0.0.0.0:8080",
+  "node_profiles": {
+    "nrt1kwo1": { "interfaces": ["ens224"] },
+    "nrt1kwo2": { "interfaces": ["enp1s0.20"] },
+    "nrt1kwo3": { "interfaces": ["ens19"] }
+  },
+  "networks": [
+    "192.168.30.0/24"
+  ],
+  "data_dir": "/data",
+  "stale_after": "5m",
+  "offline_after": "30m",
+  "startup_grace": "30s",
+  "retention_days": 30,
+  "history_max_mb": 128,
+  "max_devices": 4096,
+  "reverse_dns": false,
+  "vendor_file": "",
+  "active_arp": true,
+  "probe_rate": 10,
+  "scan_interval": "5m",
+  "mdns_lookup": true,
+  "hosts_url": "https://github.com/y2e-org/playbooks/blob/master/svc/coredns/config/tun.y2e.org.hosts",
+  "hosts_refresh": "5m"
+}
