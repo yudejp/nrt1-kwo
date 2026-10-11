@@ -6,7 +6,7 @@ namespace: default
 resources:
 - deployment.yaml
 - service.yaml
-- secret.yaml
+- sealedsecret.yaml
 
 labels:
 - includeSelectors: true
