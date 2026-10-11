@@ -3,6 +3,8 @@ kind: Service
 metadata:
   name: adguard
   namespace: adguard
+  annotations:
+    traefik.ingress.kubernetes.io/service.serverstransport: adguard-adguard-origin@kubernetescrd
 spec:
   selector:
     app: adguard

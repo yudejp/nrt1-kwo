@@ -1,0 +1,39 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cloudflare-adguard-1
+  namespace: kube-system
+spec:
+  ingressClassName: cloudflare-tunnel
+  rules:
+    - host: adguard.yude.jp.eu.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: traefik
+                port:
+                  name: web
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: public-adguard-1
+  namespace: adguard
+  annotations:
+    traefik.ingress.kubernetes.io/service.serversscheme: https
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: adguard.yude.jp.eu.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: adguard
+                port:
+                  number: 443
