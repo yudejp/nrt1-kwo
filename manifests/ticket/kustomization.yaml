@@ -10,4 +10,4 @@ resources:
   - cronjob-mail-receive.yaml
   - job-set-mail-from.yaml
   - job-plugin-migrate.yaml
-  - secret.yaml
+  - sealedsecret.yaml
