@@ -1,0 +1,12 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: sealed-secrets-controller
+  namespace: kube-system
+spec:
+  chart: sealed-secrets
+  repo: https://bitnami.github.io/sealed-secrets
+  version: 2.20.0
+  targetNamespace: kube-system
+  valuesContent: |-
+    fullnameOverride: sealed-secrets-controller
