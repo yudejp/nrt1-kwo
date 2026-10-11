@@ -1,13 +1,13 @@
 # Mongo Express
 
-`secret.yaml` is intentionally excluded from `kustomization.yaml` so a normal
-`kubectl apply -k` cannot overwrite the live credentials with a local example.
+Credentials are encrypted in `vault.yml`. The generated `sealedsecret.yaml` is
+included in `kustomization.yaml`. Do not apply a plaintext `secret.yaml`.
 
-For initial provisioning, copy `secret.example.yaml` to the ignored
-`secret.yaml`, replace every placeholder, and apply it explicitly before the
-rest of the manifests:
+For a credential change, edit the Vault file, regenerate the SealedSecret with
+`playbooks/seal-secret.yaml`, then apply the app manifests. Follow
+[`manifests/SECRETS.md`](../SECRETS.md) for the commands. The Secret namespace
+is `mongodb`.
 
 ```bash
-kubectl apply -n mongodb -f manifests/mongo-express/secret.yaml
 kubectl apply -k manifests/mongo-express/
 ```
