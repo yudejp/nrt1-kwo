@@ -22,4 +22,4 @@ configMapGenerator:
 
 images:
   - name: ghcr.io/yude/tunwatch
-    newTag: sha-850197f3356f78277d687f52ced0dbef84653dec
+    newTag: sha-9e8ba698ad35c6e8bd586b566fe460ccdab97101 
