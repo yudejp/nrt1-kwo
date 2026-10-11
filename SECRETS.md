@@ -4,12 +4,6 @@
 `sealedsecret.yaml` はこのクラスタの Sealed Secrets 公開証明書で封印したもので、
 Kustomize から適用します。平文の `secret.yaml` は使用しません。
 
-対象は `es-meili-growi-bridge`、`growi`、`meilisearch`、`mongo-express`、
-`swarm-checkin`、`swarm-keikenchi`、`tapo-power-grafana`、`ticket`、
-`vaultwarden` です。`swarm-checkin` は専用の
-`swarm-checkin-foursquare-credentials` を使い、`swarm-keikenchi` は
-`foursquare-credentials` を使います。
-
 ## 値の更新
 
 以下の `<app>` と `<password-file>` を置き換えます。Vault パスワードファイルは
@@ -35,5 +29,3 @@ kubectl get sealedsecret -n <namespace> <secret-name>
 既存の平文 Secret を SealedSecret 管理に移すときは、Secret に
 `sealedsecrets.bitnami.com/managed=true` と
 `sealedsecrets.bitnami.com/patch=true` を付けてから Controller を再起動します。
-この移行は 2026-10-12 に対象 8 件へ実施済みです。`swarm-checkin` の専用 Secret は
-SealedSecret から新規作成しました。
