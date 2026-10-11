@@ -1,0 +1,29 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: crowdsec
+  namespace: kube-system
+spec:
+  chart: crowdsec
+  repo: https://crowdsecurity.github.io/helm-charts
+  version: 0.24.2
+  targetNamespace: crowdsec
+  valuesContent: |-
+    agent:
+      env:
+        - name: COLLECTIONS
+          value: crowdsecurity/traefik
+      additionalAcquisition:
+        - source: file
+          filenames:
+            - /var/log/containers/traefik-*_kube-system_traefik-*.log
+          force_inotify: true
+          labels:
+            type: containerd
+            program: traefik
+    lapi:
+      persistentVolume:
+        data:
+          storageClassName: longhorn
+        config:
+          storageClassName: longhorn
