@@ -1,0 +1,20 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: cloudflare-tunnel-ingress-controller
+  namespace: kube-system
+spec:
+  chart: cloudflare-tunnel-ingress-controller
+  repo: https://helm.strrl.dev
+  version: 0.1.0
+  targetNamespace: cloudflare-tunnel-system
+  valuesContent: |-
+    cloudflare:
+      secretRef:
+        name: cloudflare-api
+        accountIDKey: cloudflare-account-id
+        tunnelNameKey: cloudflare-tunnel-name
+        apiTokenKey: api-token
+    cloudflared:
+      replicaCount: 2
+      podAntiAffinity: true

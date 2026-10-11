@@ -1,0 +1,69 @@
+---
+- name: Seal Cloudflare API credentials for this cluster
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vault.yml
+  vars:
+    secret_manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: cloudflare-api
+        namespace: cloudflare-tunnel-system
+      type: Opaque
+      stringData:
+        api-token: "{{ cloudflare_api_token }}"
+        cloudflare-account-id: "{{ cloudflare_account_id }}"
+        cloudflare-tunnel-name: "{{ cloudflare_tunnel_name }}"
+  tasks:
+    - name: Verify access to both Cloudflare DNS zones before sealing
+      ansible.builtin.uri:
+        url: "https://api.cloudflare.com/client/v4/zones?name={{ item | urlencode }}"
+        headers:
+          Authorization: "Bearer {{ cloudflare_api_token }}"
+        status_code: 200
+        return_content: true
+      loop:
+        - yude.jp.eu.org
+        - y2e.org
+      register: zone_checks
+      no_log: true
+
+    - name: Require both DNS zones to be visible
+      ansible.builtin.assert:
+        that:
+          - zone_checks.results | length == 2
+          - zone_checks.results[0].json.success | default(false)
+          - zone_checks.results[1].json.success | default(false)
+          - zone_checks.results[0].json.result | length > 0
+          - zone_checks.results[1].json.result | length > 0
+        fail_msg: Cloudflare API token cannot read both yude.jp.eu.org and y2e.org zones.
+
+    - name: Encrypt credentials using the cluster certificate
+      ansible.builtin.command:
+        argv:
+          - kubeseal
+          - --cert
+          - "{{ playbook_dir }}/pub-cert.pem"
+          - --format
+          - yaml
+          - --scope
+          - strict
+        stdin: "{{ secret_manifest | to_json }}"
+      register: sealed
+      changed_when: true
+      no_log: true
+
+    - name: Save the SealedSecret
+      ansible.builtin.copy:
+        content: "{{ sealed.stdout }}\n"
+        dest: "{{ playbook_dir }}/sealedsecret.yaml"
+        mode: '0644'
+      no_log: true
+
+    - name: Include the SealedSecret in Kustomize
+      ansible.builtin.lineinfile:
+        path: "{{ playbook_dir }}/kustomization.yaml"
+        insertafter: '^  - helmchart.yaml$'
+        line: '  - sealedsecret.yaml'
