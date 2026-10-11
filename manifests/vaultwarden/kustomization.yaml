@@ -4,7 +4,7 @@ resources:
   - cloudflare-ingress.yaml
   - serviceaccount.yaml
   - configmap.yaml
-  - secret.yaml
+  - sealedsecret.yaml
   - pvc.yaml
   - service.yaml
   - deployment.yaml
