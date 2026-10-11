@@ -1,0 +1,75 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cloudflare-vaultwarden-1
+  namespace: kube-system
+spec:
+  ingressClassName: cloudflare-tunnel
+  rules:
+    - host: vaultwarden.yude.jp.eu.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: traefik
+                port:
+                  name: web
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: public-vaultwarden-1
+  namespace: default
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: vaultwarden.yude.jp.eu.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vaultwarden-release
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cloudflare-vaultwarden-2
+  namespace: kube-system
+spec:
+  ingressClassName: cloudflare-tunnel
+  rules:
+    - host: vault.y2e.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: traefik
+                port:
+                  name: web
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: public-vaultwarden-2
+  namespace: default
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: vault.y2e.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vaultwarden-release
+                port:
+                  number: 80
