@@ -9,6 +9,6 @@ resources:
   - pdb.yaml
   - pvc.yaml
   - configmap.yaml
-  - secret.yaml
+  - sealedsecret.yaml
   - deployment.yaml
   - service.yaml
