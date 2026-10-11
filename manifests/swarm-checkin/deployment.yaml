@@ -23,12 +23,12 @@ spec:
             - name: VITE_FOURSQUARE_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: foursquare-credentials
+                  name: swarm-checkin-foursquare-credentials
                   key: client-id
             - name: VITE_FOURSQUARE_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: foursquare-credentials
+                  name: swarm-checkin-foursquare-credentials
                   key: client-secret
           resources:
             requests:

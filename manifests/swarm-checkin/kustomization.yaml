@@ -5,7 +5,7 @@ resources:
 - cloudflare-ingress.yaml
 - deployment.yaml
 - service.yaml
-- secret.yaml
+- sealedsecret.yaml
 
 labels:
 - includeSelectors: true
