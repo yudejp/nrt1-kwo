@@ -1,0 +1,74 @@
+# Deploy as /mnt/prod/docker/nrt1-k8s-sftp/compose.yaml on nrt1sh1.
+# authorized_keys and host_ed25519 are provisioned separately in that directory.
+services:
+  nrt1-k8s-sftp:
+    image: rclone/rclone@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5
+    user: "65534:65534"
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 512m
+    ports:
+      - "192.168.30.218:12222:2022/tcp"
+    tmpfs:
+      - /tmp:rw,mode=1777
+      - /config:rw,uid=65534,gid=65534
+    volumes:
+      - /mnt/store3/music:/music:ro
+      - ./authorized_keys:/keys/authorized_keys:ro
+      - ./host_ed25519:/keys/host_ed25519:ro
+    command:
+      - --cache-dir
+      - /tmp/rclone-cache
+      - serve
+      - sftp
+      - /music
+      - --read-only
+      - --authorized-keys
+      - /keys/authorized_keys
+      - --key
+      - /keys/host_ed25519
+      - --user
+      - navidrome
+      - --addr
+      - :2022
+  www2:
+    image: rclone/rclone@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5
+    user: "65534:65534"
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 512m
+    ports:
+      - "192.168.30.218:12223:2022/tcp"
+    tmpfs:
+      - /tmp:rw,mode=1777
+      - /config:rw,uid=65534,gid=65534
+    volumes:
+      - /mnt/store3/html:/www:ro
+      - /mnt/store3/teltty:/www/teltty:ro
+      - ./www2-authorized_keys:/keys/authorized_keys:ro
+      - ./host_ed25519:/keys/host_ed25519:ro
+    command:
+      - --cache-dir
+      - /tmp/rclone-cache
+      - serve
+      - sftp
+      - /www
+      - --read-only
+      - --authorized-keys
+      - /keys/authorized_keys
+      - --key
+      - /keys/host_ed25519
+      - --user
+      - www2
+      - --addr
+      - :2022
