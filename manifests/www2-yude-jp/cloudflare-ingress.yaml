@@ -1,0 +1,37 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cloudflare-www2-yude-jp-1
+  namespace: kube-system
+spec:
+  ingressClassName: cloudflare-tunnel
+  rules:
+    - host: www2.yude.jp
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: traefik
+                port:
+                  name: web
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: public-www2-yude-jp-1
+  namespace: default
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: www2.yude.jp
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: www2-yude-jp
+                port:
+                  number: 80

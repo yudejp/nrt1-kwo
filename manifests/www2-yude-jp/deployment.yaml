@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: www2-yude-jp
+  namespace: default
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: www2-yude-jp
+  template:
+    metadata:
+      labels:
+        app: www2-yude-jp
+    spec:
+      automountServiceAccountToken: false
+      initContainers:
+        - name: copy-rclone
+          image: rclone/rclone@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5
+          command: ["/bin/sh", "-ec"]
+          args:
+            - cp /usr/local/bin/rclone /usr/bin/fusermount3 /tools/; chmod 755 /tools/rclone /tools/fusermount3
+          volumeMounts:
+            - name: tools
+              mountPath: /tools
+      containers:
+        - name: caddy
+          image: caddy@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af
+          command: ["/bin/sh", "/etc/www2/start.sh"]
+          env:
+            - name: PATH
+              value: /tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+          ports:
+            - name: http
+              containerPort: 80
+          securityContext:
+            privileged: true
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - grep -q ' - fuse.rclone ' /proc/self/mountinfo && wget -q -O /dev/null http://127.0.0.1/
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - grep -q ' - fuse.rclone ' /proc/self/mountinfo && wget -q -O /dev/null http://127.0.0.1/
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - grep -q ' - fuse.rclone ' /proc/self/mountinfo && wget -q -O /dev/null http://127.0.0.1/
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          volumeMounts:
+            - name: fuse
+              mountPath: /dev/fuse
+            - name: site-key
+              mountPath: /keys
+              readOnly: true
+            - name: config
+              mountPath: /etc/www2
+              readOnly: true
+            - name: tools
+              mountPath: /tools
+              readOnly: true
+      volumes:
+        - name: fuse
+          hostPath:
+            path: /dev/fuse
+            type: CharDevice
+        - name: site-key
+          secret:
+            secretName: www2-yude-jp-sftp
+            defaultMode: 0400
+        - name: config
+          configMap:
+            name: www2-yude-jp-config
+            defaultMode: 0444
+        - name: tools
+          emptyDir: {}
