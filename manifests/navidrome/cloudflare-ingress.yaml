@@ -1,0 +1,37 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cloudflare-navidrome-1
+  namespace: kube-system
+spec:
+  ingressClassName: cloudflare-tunnel
+  rules:
+    - host: navidrome.yude.jp.eu.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: traefik
+                port:
+                  name: web
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: public-navidrome-1
+  namespace: default
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: navidrome.yude.jp.eu.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: navidrome
+                port:
+                  number: 80
