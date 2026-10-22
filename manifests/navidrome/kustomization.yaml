@@ -8,3 +8,4 @@ resources:
   - service.yaml
   - cloudflare-ingress.yaml
   - lan-service.yaml
+  - tailscale-ingress.yaml

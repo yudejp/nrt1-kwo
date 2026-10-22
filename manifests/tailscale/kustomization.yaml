@@ -5,3 +5,4 @@ resources:
   - authproxy-clusterrole.yaml
   - authproxy-clusterrolebinding.yaml
   - proxygroup.yaml
+  - ingress-proxygroup.yaml

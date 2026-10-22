@@ -1,0 +1,9 @@
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyGroup
+metadata:
+  name: nrt1-ingress
+spec:
+  type: ingress
+  hostnamePrefix: nrt1-k8s-ingress
+  replicas: 2
+  tags: ["tag:k8s"]
