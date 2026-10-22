@@ -1,4 +1,4 @@
-# Deploy as /mnt/prod/docker/nrt1-k8s-sftp/compose.yaml on nrt1sh1.
+# Deploy as docker/nrt1-k8s-sftp/compose.yaml on nrt1sh1.
 # authorized_keys and host_ed25519 are provisioned separately in that directory.
 services:
   nrt1-k8s-sftp:
