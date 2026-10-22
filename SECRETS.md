@@ -4,6 +4,18 @@
 `sealedsecret.yaml` はこのクラスタの Sealed Secrets 公開証明書で封印したもので、
 Kustomize から適用します。平文の `secret.yaml` は使用しません。
 
+## 値の確認
+
+Vault の元データを確認するには、リポジトリのルートで次を実行します。
+復号された値は端末に表示されるため、画面共有や端末ログへの記録に注意してください。
+
+```bash
+ANSIBLE_LOCAL_TEMP=/tmp/ansible-secret-view \
+ansible-vault view manifests/<app>/vault.yml --vault-password-file <password-file>
+```
+
+SealedSecret には復号用の秘密鍵を保存していません。元データを確認するときは `vault.yml` を参照します。
+
 ## 値の更新
 
 以下の `<app>` と `<password-file>` を置き換えます。Vault パスワードファイルは
