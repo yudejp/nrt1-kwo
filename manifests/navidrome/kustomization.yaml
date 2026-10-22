@@ -7,3 +7,4 @@ resources:
   - deployment.yaml
   - service.yaml
   - cloudflare-ingress.yaml
+  - lan-service.yaml

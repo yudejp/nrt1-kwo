@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: navidrome-lan
+  namespace: default
+  annotations:
+    kube-vip.io/loadbalancerIPs: 192.168.30.180
+spec:
+  type: LoadBalancer
+  loadBalancerClass: kube-vip.io/kube-vip-class
+  allocateLoadBalancerNodePorts: false
+  selector:
+    app: navidrome
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
