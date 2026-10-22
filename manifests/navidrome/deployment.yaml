@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navidrome
+  namespace: default
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: navidrome
+  template:
+    metadata:
+      labels:
+        app: navidrome
+    spec:
+      automountServiceAccountToken: false
+      initContainers:
+        - name: copy-rclone
+          image: rclone/rclone@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5
+          command: ["/bin/sh", "-ec"]
+          args:
+            - cp /usr/local/bin/rclone /usr/bin/fusermount3 /tools/; chmod 755 /tools/rclone /tools/fusermount3
+          volumeMounts:
+            - name: tools
+              mountPath: /tools
+      containers:
+        - name: navidrome
+          image: deluan/navidrome@sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52
+          command: ["/bin/sh", "/etc/navidrome/start.sh"]
+          env:
+            - name: PATH
+              value: /tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+            - name: ND_MUSICFOLDER
+              value: /music
+            - name: ND_DATAFOLDER
+              value: /data
+            - name: ND_CONFIGFILE
+              value: /data/navidrome.toml
+            - name: ND_SCANSCHEDULE
+              value: 1h
+            - name: ND_SESSIONTIMEOUT
+              value: 24h
+            - name: ND_DEFAULTLANGUAGE
+              value: ja
+            - name: ND_LOGLEVEL
+              value: info
+            - name: ND_ENABLETRANSCODINGCONFIG
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 4533
+          securityContext:
+            privileged: true
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - grep -q ' - fuse.rclone ' /proc/self/mountinfo && wget -q -O /dev/null http://127.0.0.1:4533/
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - grep -q ' - fuse.rclone ' /proc/self/mountinfo && wget -q -O /dev/null http://127.0.0.1:4533/
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - grep -q ' - fuse.rclone ' /proc/self/mountinfo && wget -q -O /dev/null http://127.0.0.1:4533/
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: fuse
+              mountPath: /dev/fuse
+            - name: data
+              mountPath: /data
+            - name: music-key
+              mountPath: /keys
+              readOnly: true
+            - name: config
+              mountPath: /etc/navidrome
+              readOnly: true
+            - name: tools
+              mountPath: /tools
+              readOnly: true
+      volumes:
+        - name: fuse
+          hostPath:
+            path: /dev/fuse
+            type: CharDevice
+        - name: data
+          persistentVolumeClaim:
+            claimName: navidrome-data
+        - name: music-key
+          secret:
+            secretName: nrt1-k8s-sftp-navidrome
+            defaultMode: 0400
+        - name: config
+          configMap:
+            name: navidrome-config
+            defaultMode: 0444
+        - name: tools
+          emptyDir: {}

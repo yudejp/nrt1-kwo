@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: navidrome-config
+  namespace: default
+data:
+  rclone.conf: |
+    [music]
+    type = sftp
+    host = 192.168.30.218
+    port = 12222
+    user = navidrome
+    key_file = /keys/key
+    known_hosts_file = /keys/known_hosts
+    shell_type = none
+  start.sh: |
+    #!/bin/sh
+    set -eu
+
+    fuse_pid=
+    app_pid=
+    stop() {
+      if [ -n "$app_pid" ]; then kill "$app_pid" 2>/dev/null || true; fi
+      if [ -n "$fuse_pid" ]; then kill "$fuse_pid" 2>/dev/null || true; fi
+      if [ -n "$app_pid" ]; then wait "$app_pid" 2>/dev/null || true; fi
+      if [ -n "$fuse_pid" ]; then wait "$fuse_pid" 2>/dev/null || true; fi
+    }
+    trap stop EXIT INT TERM
+
+    /tools/rclone --config /etc/navidrome/rclone.conf \
+      mount music: /music --allow-non-empty --read-only \
+      --vfs-cache-mode off --poll-interval 0 --log-level NOTICE &
+    fuse_pid=$!
+
+    ready=0
+    for i in $(seq 1 60); do
+      if grep -q ' - fuse.rclone ' /proc/self/mountinfo; then
+        ready=1
+        break
+      fi
+      if ! kill -0 "$fuse_pid" 2>/dev/null; then break; fi
+      sleep 1
+    done
+    if [ "$ready" -ne 1 ]; then
+      echo 'SFTP music mount did not become ready' >&2
+      exit 1
+    fi
+
+    /app/navidrome &
+    app_pid=$!
+    wait "$app_pid"
