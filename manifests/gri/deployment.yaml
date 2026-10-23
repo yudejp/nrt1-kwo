@@ -71,7 +71,7 @@ spec:
               mountPath: /work/gra
       containers:
         - name: gri
-          image: ghcr.io/yudejp/gri:43fb9f3
+          image: ghcr.io/yudejp/gri:d92a77b
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsUser: 1000
@@ -94,7 +94,7 @@ spec:
           args:
             - |
               set -eu
-              /usr/local/bundle/bin/grapher -h 0.0.0.0 -p 9292 &
+              grapher -h 0.0.0.0 -p 9292 &
               web_pid=$!
               trap 'kill "$web_pid" 2>/dev/null || true; exit 0' INT TERM
               while true; do
@@ -102,7 +102,7 @@ spec:
                   echo "grapher exited" >&2
                   exit 1
                 fi
-                /usr/local/bundle/bin/gri --duration=${GRI_INTERVAL:-300}
+                gri --duration=${GRI_INTERVAL:-300}
                 sleep "${GRI_INTERVAL:-600}"
               done
           env:
