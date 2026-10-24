@@ -8,6 +8,8 @@ metadata:
 spec:
   type: LoadBalancer
   loadBalancerClass: kube-vip.io/kube-vip-class
+  externalIPs:
+    - 192.168.30.180
   allocateLoadBalancerNodePorts: false
   selector:
     app: navidrome
