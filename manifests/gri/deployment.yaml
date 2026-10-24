@@ -71,7 +71,7 @@ spec:
               mountPath: /work/gra
       containers:
         - name: gri
-          image: ghcr.io/yudejp/gri:9ab9253
+          image: ghcr.io/yudejp/gri:c9a403a
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsUser: 1000
