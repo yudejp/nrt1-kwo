@@ -1,0 +1,6 @@
+{
+  "name": "All Music",
+  "comment": "All tracks for offline synchronization",
+  "all": [{ "gt": { "playCount": -1 } }],
+  "sort": "title"
+}
