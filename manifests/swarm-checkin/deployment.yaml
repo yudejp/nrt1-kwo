@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: swarm-checkin
-          image: ghcr.io/yude/swarm-checkin:d7fc116
+          image: ghcr.io/yude/swarm-checkin:25d77e1
           ports:
             - containerPort: 80
           env:
