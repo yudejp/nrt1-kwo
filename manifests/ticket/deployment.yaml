@@ -48,7 +48,7 @@ spec:
               mountPath: /plugins
       containers:
         - name: redmine
-          image: redmine:7.0.2-trixie
+          image: redmine:7.0.3-trixie
           imagePullPolicy: Always
           resources:
             requests:
