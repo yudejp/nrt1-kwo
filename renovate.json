@@ -21,6 +21,15 @@
   },
   "packageRules": [
     {
+      "description": "Track Caddy release versions without digest-only updates",
+      "matchManagers": ["kubernetes"],
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["caddy"],
+      "matchFileNames": ["manifests/www2-yude-jp/deployment.yaml"],
+      "matchUpdateTypes": ["digest"],
+      "enabled": false
+    },
+    {
       "matchPackageNames": [
         "ghcr.io/yude/groffer",
         "ghcr.io/yude/ytnotifier",
