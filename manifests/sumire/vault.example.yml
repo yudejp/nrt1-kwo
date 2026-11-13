@@ -1,0 +1,11 @@
+# Reference for `ansible-vault create manifests/sumire/vault.yml`.
+# Fill the token inside the Vault editor. Do not save a plaintext vault.yml.
+secret_manifest:
+  apiVersion: v1
+  kind: Secret
+  metadata:
+    name: sumire-misskey
+    namespace: sumire
+  type: Opaque
+  stringData:
+    token: ""

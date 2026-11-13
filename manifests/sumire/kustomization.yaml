@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sumire
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - pvc.yaml
+  - sealedsecret.yaml
+
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/name: sumire
+
+configMapGenerator:
+  - name: sumire-config
+    literals:
+      - MISSKEY_URL=https://misskey.y2e.org
+      - LLM_MODEL=opencode/glm-5.3-flash-free
+      - DRY_RUN=false
+      - POLL_INTERVAL=15s
+      - GENERATE_TIMEOUT=3m
+      - MAX_REPLY_CHARS=400
+      - MAX_QUEUE=1000
+  - name: sumire-opencode-config
+    files:
+      - opencode/opencode.json
+      - opencode/persona.md
+  - name: sumire-workspace
+    files:
+      - opencode/facts.txt
+
+images:
+  - name: ghcr.io/yude/sumire
+    digest: sha256:5380c539c83a485afc239c49d0df21e1a311825e7dc65f718f053dd494c26aca
+  - name: ghcr.io/yude/sumire-opencode
+    digest: sha256:09a3358874be219329c743ead92aa3ab014922abe8f1c4cdbf78d0502375c3c5

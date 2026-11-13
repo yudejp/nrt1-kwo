@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sumire-data
+spec:
+  storageClassName: longhorn
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sumire-opencode-data
+spec:
+  storageClassName: longhorn
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
