@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rdp-web
+  namespace: default
+  labels:
+    app: rdp-web
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: rdp-web
+  template:
+    metadata:
+      labels:
+        app: rdp-web
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: ghcr.io/yude/rdp-web@sha256:2f7b5d38debe41d47097cb930b4c1f15c06808ef65d55645239854ba6d1db808
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PUBLIC_ORIGIN
+              value: https://nrt1ws2.yude.jp.eu.org
+            - name: RDP_HOST
+              value: nrt1ws2.tun.y2e.org
+            - name: RDP_LEGACY_GRAPHICS
+              value: "true"
+            - name: GUACD_ADDR
+              value: 127.0.0.1:4822
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+        - name: guacd
+          image: guacamole/guacd:1.6.0@sha256:8974eaa9ba32f713daf311e7cc8cd7e4cdfba1edea39eed75524e78ef4b08f4f
+          command: [/opt/guacamole/sbin/guacd]
+          args: [-f, -b, 127.0.0.1, -L, info]
+          env:
+            - name: HOME
+              value: /tmp
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "2"
+              memory: 512Mi
+          volumeMounts:
+            - name: guacd-tmp
+              mountPath: /tmp
+      volumes:
+        - name: guacd-tmp
+          emptyDir:
+            sizeLimit: 128Mi

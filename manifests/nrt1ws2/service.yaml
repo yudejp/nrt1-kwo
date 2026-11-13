@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nrt1ws2-rdp
+  namespace: default
+spec:
+  type: ExternalName
+  externalName: nrt1ws2.tun.y2e.org
+  ports:
+    - name: rdp
+      port: 3389
+      protocol: TCP
