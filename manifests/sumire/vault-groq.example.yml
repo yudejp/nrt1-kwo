@@ -1,0 +1,11 @@
+# Copy to vault-groq.yml, fill the Free-plan key, then ansible-vault encrypt it.
+# Never commit plaintext. The key is mounted only into the OpenCode sidecar.
+groq_secret_manifest:
+  apiVersion: v1
+  kind: Secret
+  metadata:
+    name: sumire-groq
+    namespace: sumire
+  type: Opaque
+  stringData:
+    api-key: ""

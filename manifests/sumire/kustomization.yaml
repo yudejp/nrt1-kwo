@@ -6,6 +6,7 @@ resources:
   - deployment.yaml
   - pvc.yaml
   - sealedsecret.yaml
+  - sealedsecret-groq.yaml
 
 labels:
   - includeSelectors: true
@@ -17,6 +18,8 @@ configMapGenerator:
     literals:
       - MISSKEY_URL=https://misskey.y2e.org
       - LLM_MODEL=opencode/flint-40b-free
+      - LLM_FALLBACK_MODELS=groq/openai/gpt-oss-20b
+      - GROQ_FREE_TIER_CONFIRMED=true
       - DRY_RUN=false
       - POLL_INTERVAL=15s
       - GENERATE_TIMEOUT=3m
@@ -29,6 +32,8 @@ configMapGenerator:
   - name: sumire-opencode-config
     files:
       - opencode/opencode.json
+      - opencode/quota-pool.mjs
+      - opencode/package.json
       - opencode/persona.md
   - name: sumire-workspace
     files:
@@ -36,6 +41,6 @@ configMapGenerator:
 
 images:
   - name: ghcr.io/yude/sumire
-    digest: sha256:d2b49ad963662515f7e76c86643787db022e8ff076e7f06407e4fcbe49bd0881
+    digest: sha256:75a19281737c6d0fc99ceda3ca804dfe20bd1c07c51cf5f58004affb6ad0ab60
   - name: ghcr.io/yude/sumire-opencode
-    digest: sha256:bbd8af29aae2dd5d2f8245e345fe92ff3ae3001ef68f5b448d1480fa2120b1b2
+    digest: sha256:2574acbbee17ababbbfd3a32052b5831fa57326e92157dd15bf9577802fb5324

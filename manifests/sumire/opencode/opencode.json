@@ -9,7 +9,9 @@
   "formatter": false,
   "websearch": false,
   "warming": false,
-  "plugins": [],
+  "plugins": [
+    "file:///etc/sumire"
+  ],
   "permissions": [
     {
       "action": "*",
@@ -41,19 +43,15 @@
       "steps": 4
     },
     "title": {
-      "model": "{env:LLM_MODEL}"
+      "disabled": true
     },
-    "summary": {
-      "model": "{env:LLM_MODEL}"
-    },
-    "compaction": {
-      "model": "{env:LLM_MODEL}"
-    }
+    "summary": {},
+    "compaction": {}
   },
   "compaction": {
     "auto": true,
     "keep": {
-      "tokens": 15000
+      "tokens": 1500
     }
   },
   "policies": [
@@ -66,6 +64,27 @@
       "action": "provider.use",
       "resource": "opencode",
       "effect": "allow"
+    },
+    {
+      "action": "provider.use",
+      "resource": "groq",
+      "effect": "allow"
     }
-  ]
+  ],
+  "providers": {
+    "groq": {
+      "models": {
+        "openai/gpt-oss-20b": {
+          "limit": {
+            "context": 7000,
+            "input": 6000,
+            "output": 1000
+          },
+          "body": {
+            "reasoning_effort": "low"
+          }
+        }
+      }
+    }
+  }
 }

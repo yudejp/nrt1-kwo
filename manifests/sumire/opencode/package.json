@@ -1,0 +1,8 @@
+{
+  "name": "sumire-quota-pool",
+  "version": "1.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./quota-pool.mjs"
+  }
+}

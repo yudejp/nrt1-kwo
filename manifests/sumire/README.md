@@ -6,7 +6,7 @@ Deployment 1 Pod / 2コンテナ＋初期化用コンテナ、独立した PVC 2
 
 ## 必要な Secret
 
-設定するのは `sumire-misskey` の `token` だけです。GHCR イメージは public のため imagePullSecrets は不要です。ソースリポジトリは private のままです。
+Misskey 用は `sumire-misskey` の `token`、Groq Free 用は `sumire-groq` の `api-key` です。GHCR イメージは public のため imagePullSecrets は不要です。ソースリポジトリは private のままです。
 
 OpenCode V2 は HTTP 認証を要求しますが、その内部用パスワードは init container が起動時に自動生成します。メモリ上の emptyDir に保存して両コンテナへ読み取り専用で共有し、Pod 再作成時に更新します。Vault や Kubernetes Secret への登録・手入力は不要です。
 
@@ -108,3 +108,29 @@ kubectl -n sumire exec deployment/sumire -c opencode -- date
 最終的なモデルは Flint 40B Free です。30日保持・モデル改善利用の可能性がある条件について利用者の明示的な了承を得ました。共有履歴を維持し、無料枠の待機時刻も引き継ぎます。
 
 修正版は CI 43540375486（e72b764）で全ジョブ成功し、同じコードと Docker 設定の公開イメージを digest 固定しています。date=JST+0900 とログの +09:00 表示、共有履歴・投稿済み15件・失敗1件の保持、Go の再起動後も待機期限が変わらないことを確認しました。障害時の両 DB は停止中にバックアップし、integrity_check=ok でした。
+
+## Groq Free のモデルプール
+
+LLM_MODEL=opencode/flint-40b-free を優先し、LLM_FALLBACK_MODELS=groq/openai/gpt-oss-20b に切り替えます。既存 Groq キーが Free プランであることを利用者に確認し、GROQ_FREE_TIER_CONFIRMED=true としています。Groq のカタログ単価は0でないためアカウントが Free であることが必要です。このアカウントを Developer プランへ変更しないでください。キーは OpenCode だけに渡します。
+
+Vault を作成・編集する場合は vault-groq.example.yml の groq_secret_manifest を使います。暗号化済み vault-groq.yml から封印するコマンドは次の通りです。既存 Misskey Vault は変更しません。
+
+```bash
+ANSIBLE_BECOME_ASK_PASS=false ANSIBLE_LOCAL_TEMP=/tmp/sumire-ansible ANSIBLE_REMOTE_TEMP=/tmp/sumire-ansible-remote ansible-playbook -i localhost, -c local playbooks/seal-sumire-groq-secret.yaml --ask-vault-pass
+kubectl kustomize manifests/sumire/ >/dev/null
+kubectl apply -k manifests/sumire/
+kubectl -n sumire rollout status deployment/sumire
+kubectl -n sumire exec deployment/sumire -c sumire -- sumire status
+```
+
+OpenCode の既存待機期限は OpenCode のみに適用して保持します。新しい待機は provider_cooldowns として DB に保存し、両方が上限ならキューで待ちます。CLI の公式 plugin quota-pool.mjs は429の内部再試行を止め、Go のキューに制御を返します。生成前の確定429だけ別の入力 ID で再試行し、通信切断・途中出力などの不明な結果は自動再送しません。共有セッションと履歴、投稿の重複防止は維持します。既存 generation_failed は再投入しません。
+
+Groq は入力6000・出力1000・コンテキスト7000を上限に同じ選択モデルで会話を要約し、最近1500トークンを保持します。要約と通常の返答を合計して上限になる場合も待機します。タイトルの自動生成は無効です。
+
+切戻しは入力処理の終了・回収を待ち、Bot を停止して公式 switch-opencode-model でセッションを OpenCode に戻してから LLM_FALLBACK_MODELS を空にします。モデルプール対応バイナリを維持し、DB/PVC は巻き戻しません。ソース側 docs/model-pool.md に詳細があります。
+
+## モデルプールの配布検証（2026-11-14）
+
+CI 43548053127（2072807）の全ジョブ成功後、両 public イメージの digest を固定して反映しました。Groq Free の実 API と公式 OpenCode CLI で共有会話を検証済みです。OpenCode の11/15 09:07:05（JST）までの待機期限を保持し、受信済みのリプライを Groq で処理しました。一時的な429では待機期限を守り、11/14 11:44:46（JST）に [返信](https://misskey.y2e.org/notes/atjd9yzst4)が1回だけ投稿されました。Misskey API で返信先・投稿者・本文とログの一致、localOnly=false を確認しました。
+
+status に provider_cooldowns を追加し、両方の待機期限を個別に確認できます。更新前の両 DB バックアップは integrity_check=ok、最終版の再起動後も共有セッションと投稿済み16件を維持しています。既存 generation_failed=1 は保持し、キュー0・不明な生成/投稿0・Pod 2/2・再起動0・readyz=200・Kustomize 差分0を確認しました。

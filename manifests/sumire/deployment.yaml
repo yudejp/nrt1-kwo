@@ -52,6 +52,12 @@ spec:
               value: Asia/Tokyo
             - name: OPENCODE_PASSWORD_FILE
               value: /run/sumire-opencode/password
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sumire-groq
+                  key: api-key
+                  optional: true
             - name: LLM_MODEL
               valueFrom:
                 configMapKeyRef:
