@@ -60,3 +60,51 @@ sumire Namespace に適用済みです。Deployment は Available 1/1、Pod は2
 ユーザーが送った[リプライ](https://misskey.y2e.org/notes/atj18pgzhx)を受信し、[sumire の返信](https://misskey.y2e.org/notes/atj18w75dz)が実際に投稿されました。06:07:51 から 06:08:00（JST）まで約8.7秒。Misskey API で返信先 ID、投稿者 sumire、空でない本文を照合し、アプリの reply posted ログとも一致しました。
 
 続く2件にも返信し、[直近の返答](https://misskey.y2e.org/notes/atj1ec86i8)を含む3件の投稿を API で確認しました。ジョブは posted が3件、未解決は0件。共有セッションを維持し、Pod は2/2 Running・再起動0回です。本文や認証情報は記録に含めていません。
+
+## 日次コメントと手動実行
+
+DAILY_ENABLED=true、DAILY_AT=20:00（日本時間）、DAILY_MIN_NOTES=3、DAILY_MIN_AUTHORS=2 を設定しています。直近24時間の local timeline に対象3件以上・2人以上がいる場合にコメントを1件投稿します。Bot・自身・リノート・返信・本文なし・CW付き・連合なし・public 以外の投稿は除外し、投稿不足時はモデルを呼ばず見送ります。取得上限は500件、モデルに渡す本文は最新30件・各600 UTF-16単位までです。投稿は public / localOnly=false（連合あり）の単独ノートです。
+
+```bash
+# 投稿なしのテスト。当日分を消費せず、生成した本文をログに出す
+kubectl -n sumire exec deployment/sumire -c sumire -- sumire daily --preview
+# 当日分を手動で実行。条件・DRY_RUN を守り、当日の重複実行を防ぐ
+kubectl -n sumire exec deployment/sumire -c sumire -- sumire daily
+# 受付は非同期。daily_runs の job_id/state/post_id とログで結果を確認
+kubectl -n sumire exec deployment/sumire -c sumire -- sumire status
+kubectl -n sumire logs deployment/sumire -c sumire --tail=100
+```
+
+手動 HTTP API は Pod 内の 127.0.0.1:8081 だけに待ち受けます。Service / Ingress・新たな Secret は不要です。通常実行・見送りは日付で永続化し、再起動でも重複させません。20:00以降に復旧した場合は当日分を処理し、前日までの未投稿分は投稿しません。タイムライン取得失敗は日付を消費せず再試行します。
+
+通常の返信は conversation received / reply posted の text に受信・投稿本文を出し、note_id で対応付けられます。プレビューと dry run も本文を記録します。トークン・内部 reasoning は記録しません。
+
+耐障害性として、投稿 API の待機中も他の会話を処理できるキュー選択、OpenCode の読み取りだけの再試行、生成結果不明時の readiness=503、DB 保存失敗時も投稿 ID をログで追える処理を追加しています。
+
+OpenCode は native sidecar（initContainers の restartPolicy: Always）として起動し、Go の終了処理後に停止します。対象は Kubernetes 1.33以降です（実クラスタは v1.35.4）。
+
+## 日次機能の配布検証（2026-11-14）
+
+GitHub Actions 43512380381 の全ジョブ成功後に配布しました。停止中に Go / OpenCode 両 DB をバックアップし、integrity_check=ok を確認。49件・6人の LTL でプレビュー（実投稿なし）が成功し、通常実行で [当日分のコメント](https://misskey.y2e.org/notes/atj2l5vcp3)の投稿を確認しました。本文はアプリログと一致しています。
+
+続く手動実行と Pod 再起動でも同じ投稿 ID を返し、追加投稿はありません。Go の正常終了と native sidecar の停止、共有セッション・投稿状態の維持を確認し、未解決ジョブ0、healthz / readyz 成功、Kustomize との差分なしです。
+
+初回テスト投稿は当時の設定で連合なしでした。ユーザー指示により、次回以降は連合ありに変更して配布済みです。サーバー v2026.11.0 には投稿済みノートの編集 API がなく、既存ノートは変更していません。2026-11-14 の日次枠はテストで実行済みのため、同日の20:00には追加投稿しません。
+
+連合ありの版は CI 43514223412（c6ad801）で全ジョブ成功し、両 public イメージの digest を固定して反映済みです。更新後は連合なしの元ノートを除外した44件・5人でプレビューが dry_run まで成功しました。共有セッション・当日分の投稿状態を維持し、未解決ジョブは0です。
+
+## タイムゾーン・無料枠の障害対応（2026-11-14）
+
+両コンテナを Asia/Tokyo に設定し、小型の opencode/flint-40b-free に変更して反映済みです。入力・出力・キャッシュ価格がすべて0であることを確認して使用します。既存の共有セッションは公式 API でモデル選択だけを変更し、会話履歴は保持します。
+
+09:58:28（JST）の生成は provider.free-limit / HTTP 429 で失敗しました。提供元が示す再試行可能時刻は11/15 09:07頃（JST）です。確定した失敗を回収する際に終了してしまう不具合を修正し、generation_failed として保持します。generation_cooldown の期限まで後続の生成を待機し、通知の受信・本文ログは続けます。失敗した入力を自動再投入せず、後続キューは期限後に処理します。
+
+```bash
+kubectl -n sumire exec deployment/sumire -c sumire -- sumire status
+kubectl -n sumire exec deployment/sumire -c sumire -- date
+kubectl -n sumire exec deployment/sumire -c opencode -- date
+```
+
+最終的なモデルは Flint 40B Free です。30日保持・モデル改善利用の可能性がある条件について利用者の明示的な了承を得ました。共有履歴を維持し、無料枠の待機時刻も引き継ぎます。
+
+修正版は CI 43540375486（e72b764）で全ジョブ成功し、同じコードと Docker 設定の公開イメージを digest 固定しています。date=JST+0900 とログの +09:00 表示、共有履歴・投稿済み15件・失敗1件の保持、Go の再起動後も待機期限が変わらないことを確認しました。障害時の両 DB は停止中にバックアップし、integrity_check=ok でした。

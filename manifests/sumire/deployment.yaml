@@ -43,66 +43,13 @@ spec:
           volumeMounts:
             - name: opencode-runtime
               mountPath: /run/sumire-opencode
-      containers:
-        - name: sumire
-          image: ghcr.io/yude/sumire:main
-          ports:
-            - name: health
-              containerPort: 8080
-          envFrom:
-            - configMapRef:
-                name: sumire-config
-          env:
-            - name: DATA_DIR
-              value: /data
-            - name: OPENCODE_PASSWORD_FILE
-              value: /run/sumire-opencode/password
-            - name: MISSKEY_TOKEN_FILE
-              value: /var/run/sumire-secrets/token
-          startupProbe:
-            httpGet:
-              path: /healthz
-              port: health
-            periodSeconds: 5
-            failureThreshold: 30
-          readinessProbe:
-            httpGet:
-              path: /readyz
-              port: health
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: health
-            periodSeconds: 20
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: '1'
-              memory: 1Gi
-          securityContext:
-            runAsUser: 10001
-            runAsGroup: 10001
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop: [ALL]
-          volumeMounts:
-            - name: opencode-runtime
-              mountPath: /run/sumire-opencode
-              readOnly: true
-            - name: data
-              mountPath: /data
-            - name: tmp
-              mountPath: /tmp
-            - name: credentials
-              mountPath: /var/run/sumire-secrets
-              readOnly: true
+        # Keep the API alive until the Go worker finishes shutdown. Kubernetes 1.33+.
         - name: opencode
+          restartPolicy: Always
           image: ghcr.io/yude/sumire-opencode:main
           env:
+            - name: TZ
+              value: Asia/Tokyo
             - name: OPENCODE_PASSWORD_FILE
               value: /run/sumire-opencode/password
             - name: LLM_MODEL
@@ -150,6 +97,65 @@ spec:
               readOnly: true
             - name: workspace
               mountPath: /workspace
+              readOnly: true
+      containers:
+        - name: sumire
+          image: ghcr.io/yude/sumire:main
+          ports:
+            - name: health
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: sumire-config
+          env:
+            - name: TZ
+              value: Asia/Tokyo
+            - name: DATA_DIR
+              value: /data
+            - name: OPENCODE_PASSWORD_FILE
+              value: /run/sumire-opencode/password
+            - name: MISSKEY_TOKEN_FILE
+              value: /var/run/sumire-secrets/token
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: '1'
+              memory: 1Gi
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: opencode-runtime
+              mountPath: /run/sumire-opencode
+              readOnly: true
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+            - name: credentials
+              mountPath: /var/run/sumire-secrets
               readOnly: true
       volumes:
         - name: opencode-runtime
