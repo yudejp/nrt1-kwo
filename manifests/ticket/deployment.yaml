@@ -35,7 +35,7 @@ spec:
             - name: redmine-config-writable
               mountPath: /config-dst
         - name: redmine-plugin-oidc
-          image: alpine/git:v2.54.0
+          image: alpine/git:v2.54.1
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
