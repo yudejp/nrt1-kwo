@@ -2,7 +2,7 @@
 
 Misskey の会話ボットです。全ユーザー・全スレッドで OpenCode の永続セッションを1つ共有します。ソースは [yude/sumire](https://github.com/yude/sumire) の `manifests/sumire/` です。
 
-Deployment 1 Pod / 2コンテナ＋初期化用コンテナ、独立した PVC 2個で構成します。Go だけに Misskey トークンを渡し、OpenCode には read / glob / grep だけを許可します。Service / Ingress は不要です。
+Deployment 1 Pod / 2コンテナ＋初期化用コンテナ、独立した PVC 2個で構成します。Go だけに Misskey トークンを渡し、OpenCode には read / glob / grep だけを許可します。ステータス画面は Service と Ingress で公開します。
 
 ## 必要な Secret
 
@@ -30,7 +30,7 @@ kubectl kustomize manifests/sumire/
 
 ## 適用と確認
 
-MISSKEY_URL と封印した token を用意した後で実行します。既定値の DRY_RUN=true では Misskey に投稿しません。
+MISSKEY_URL と封印した token を用意した後で実行します。本番設定は DRY_RUN=false で実投稿します。投稿を止める場合は true に変更してください。
 
 ```bash
 kubectl diff -k manifests/sumire/
@@ -75,7 +75,7 @@ kubectl -n sumire exec deployment/sumire -c sumire -- sumire status
 kubectl -n sumire logs deployment/sumire -c sumire --tail=100
 ```
 
-手動 HTTP API は Pod 内の 127.0.0.1:8081 だけに待ち受けます。Service / Ingress・新たな Secret は不要です。通常実行・見送りは日付で永続化し、再起動でも重複させません。20:00以降に復旧した場合は当日分を処理し、前日までの未投稿分は投稿しません。タイムライン取得失敗は日付を消費せず再試行します。
+手動 HTTP API は Pod 内の 127.0.0.1:8081 だけに待ち受けます。Service / Ingress には公開しません。通常実行・見送りは日付で永続化し、再起動でも重複させません。20:00以降に復旧した場合は当日分を処理し、前日までの未投稿分は投稿しません。タイムライン取得失敗は日付を消費せず再試行します。
 
 通常の返信は conversation received / reply posted の text に受信・投稿本文を出し、note_id で対応付けられます。プレビューと dry run も本文を記録します。トークン・内部 reasoning は記録しません。
 
@@ -134,3 +134,13 @@ Groq は入力6000・出力1000・コンテキスト7000を上限に同じ選択
 CI 43548053127（2072807）の全ジョブ成功後、両 public イメージの digest を固定して反映しました。Groq Free の実 API と公式 OpenCode CLI で共有会話を検証済みです。OpenCode の11/15 09:07:05（JST）までの待機期限を保持し、受信済みのリプライを Groq で処理しました。一時的な429では待機期限を守り、11/14 11:44:46（JST）に [返信](https://misskey.y2e.org/notes/atjd9yzst4)が1回だけ投稿されました。Misskey API で返信先・投稿者・本文とログの一致、localOnly=false を確認しました。
 
 status に provider_cooldowns を追加し、両方の待機期限を個別に確認できます。更新前の両 DB バックアップは integrity_check=ok、最終版の再起動後も共有セッションと投稿済み16件を維持しています。既存 generation_failed=1 は保持し、キュー0・不明な生成/投稿0・Pod 2/2・再起動0・readyz=200・Kustomize 差分0を確認しました。
+
+## 公開ステータス画面
+
+[sumire.yude.jp.eu.org](https://sumire.yude.jp.eu.org) で処理待ち、モデルごとの待機期限、日次結果、未解決ジョブを確認できます。15秒ごとに更新します。`GET /api/status` は同じ情報を JSON で返します。会話本文・認証情報は返しません。
+
+既存アプリと同じ Cloudflare Tunnel → Traefik → Service の経路です。`cloudflare-sumire` Ingress は `kube-system`、`public-sumire` Ingress と Service は `sumire` に置きます。公開するのは Go の 8080 番ポートだけで、操作 API の 8081 番ポートと OpenCode は公開しません。
+
+Service は `publishNotReadyAddresses=true` にし、生成結果が不明で readiness が失敗した場合も Go が動いていれば状態を参照できます。DB を読めない場合は503を返します。
+
+2026-11-17に CI 44088136839 が成功した `e175e91` の Go イメージを配布しました。両 PVC のバックアップと SQLite 検査後、共有セッション・投稿済み状態・待機期限を保持して更新しました。HTTPS の画面と JSON は200、公開経路の操作要求は404または405です。ブラウザーの幅1440px・390pxと15秒の自動更新を確認しました。
