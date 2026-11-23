@@ -4,6 +4,7 @@ metadata:
   name: redmine
   labels:
     app: redmine
+    gdrive-backup.k8s.y2e.org/enabled: "true"
 spec:
   accessModes:
     - ReadWriteOnce

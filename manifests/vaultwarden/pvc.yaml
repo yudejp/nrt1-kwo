@@ -7,6 +7,7 @@ metadata:
     app.kubernetes.io/component: vaultwarden
     app.kubernetes.io/instance: vaultwarden-release
     app.kubernetes.io/name: vaultwarden
+    gdrive-backup.k8s.y2e.org/enabled: "true"
 spec:
   accessModes:
     - ReadWriteMany

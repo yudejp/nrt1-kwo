@@ -3,6 +3,8 @@ kind: PersistentVolumeClaim
 metadata:
   name: growi-uploads
   namespace: growi
+  labels:
+    gdrive-backup.k8s.y2e.org/enabled: "true"
 spec:
   accessModes:
     - ReadWriteOnce

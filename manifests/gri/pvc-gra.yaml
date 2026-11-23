@@ -5,6 +5,7 @@ metadata:
   labels:
     app.kubernetes.io/name: gri
     app.kubernetes.io/part-of: gri
+    gdrive-backup.k8s.y2e.org/enabled: "true"
 spec:
   accessModes:
     - ReadWriteOnce

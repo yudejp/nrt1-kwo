@@ -3,6 +3,8 @@ kind: PersistentVolumeClaim
 metadata:
   namespace: sumire
   name: sumire-data
+  labels:
+    gdrive-backup.k8s.y2e.org/enabled: "true"
 spec:
   storageClassName: longhorn
   accessModes: [ReadWriteOnce]
@@ -15,6 +17,8 @@ kind: PersistentVolumeClaim
 metadata:
   namespace: sumire
   name: sumire-opencode-data
+  labels:
+    gdrive-backup.k8s.y2e.org/enabled: "true"
 spec:
   storageClassName: longhorn
   accessModes: [ReadWriteOnce]

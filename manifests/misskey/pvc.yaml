@@ -3,6 +3,8 @@ kind: PersistentVolumeClaim
 metadata:
   name: misskey-files
   namespace: misskey-y2e-org
+  labels:
+    gdrive-backup.k8s.y2e.org/enabled: "true"
 spec:
   accessModes:
     - ReadWriteMany

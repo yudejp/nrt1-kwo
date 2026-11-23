@@ -98,7 +98,7 @@ data:
           [[ -z "$ns" || -z "$name" ]] && continue
           log "Deleting stale ${kind}: ${ns}/${name}"
           kubectl delete "$kind" "$name" -n "$ns" --ignore-not-found --wait=true --timeout=120s || true
-        done < <(kubectl get "$kind" -A -l backup.yude.jp/managed-by=k8s-gdrive-backup \
+        done < <(kubectl get "$kind" -A -l gdrive-backup.k8s.y2e.org/managed-by=gdrive-backup \
           -o jsonpath='{range .items[*]}{.metadata.namespace}{"|"}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
       done
     }
@@ -136,8 +136,8 @@ data:
       name: ${snap}
       namespace: ${ns}
       labels:
-        backup.yude.jp/temporary: "true"
-        backup.yude.jp/managed-by: "k8s-gdrive-backup"
+        gdrive-backup.k8s.y2e.org/temporary: "true"
+        gdrive-backup.k8s.y2e.org/managed-by: "gdrive-backup"
     spec:
       volumeSnapshotClassName: ${SNAPSHOT_CLASS}
       source:
@@ -167,8 +167,8 @@ data:
       name: ${clone}
       namespace: ${ns}
       labels:
-        backup.yude.jp/temporary: "true"
-        backup.yude.jp/managed-by: "k8s-gdrive-backup"
+        gdrive-backup.k8s.y2e.org/temporary: "true"
+        gdrive-backup.k8s.y2e.org/managed-by: "gdrive-backup"
     spec:
       storageClassName: ${SCRATCH_STORAGE_CLASS}
       accessModes:
@@ -190,8 +190,8 @@ data:
       name: ${pod}
       namespace: ${ns}
       labels:
-        backup.yude.jp/temporary: "true"
-        backup.yude.jp/managed-by: "k8s-gdrive-backup"
+        gdrive-backup.k8s.y2e.org/temporary: "true"
+        gdrive-backup.k8s.y2e.org/managed-by: "gdrive-backup"
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false
@@ -266,11 +266,11 @@ data:
     failed=0
     failed_list=""
 
-    while IFS='|' read -r ns name phase sc cap excl tmp sched; do
+    while IFS='|' read -r ns name phase sc cap enabled tmp sched; do
       [[ -z "$ns" || -z "$name" ]] && continue
       [[ "$phase" != "Bound" ]] && continue
       [[ "$sc" != "longhorn" && "$sc" != "longhorn-static" ]] && continue
-      [[ "$excl" == "true" || "$tmp" == "true" ]] && continue
+      [[ "$enabled" != "true" || "$tmp" == "true" ]] && continue
 
       sched="${sched:-daily}"
       [[ "$sched" != "$BACKUP_SCHEDULE" ]] && continue
@@ -286,8 +286,8 @@ data:
         failed=$((failed + 1))
         failed_list="${failed_list} ${ns}/${name}"
       fi
-    done < <(kubectl get pvc -A \
-      -o jsonpath='{range .items[*]}{.metadata.namespace}{"|"}{.metadata.name}{"|"}{.status.phase}{"|"}{.spec.storageClassName}{"|"}{.status.capacity.storage}{"|"}{.metadata.labels.backup\.yude\.jp/exclude}{"|"}{.metadata.labels.backup\.yude\.jp/temporary}{"|"}{.metadata.annotations.backup\.yude\.jp/schedule}{"\n"}{end}' \
+    done < <(kubectl get pvc -A -l gdrive-backup.k8s.y2e.org/enabled=true \
+      -o jsonpath='{range .items[*]}{.metadata.namespace}{"|"}{.metadata.name}{"|"}{.status.phase}{"|"}{.spec.storageClassName}{"|"}{.status.capacity.storage}{"|"}{.metadata.labels.gdrive-backup\.k8s\.y2e\.org/enabled}{"|"}{.metadata.labels.gdrive-backup\.k8s\.y2e\.org/temporary}{"|"}{.metadata.annotations.gdrive-backup\.k8s\.y2e\.org/schedule}{"\n"}{end}' \
       | sort)
 
     log "Summary (schedule=${BACKUP_SCHEDULE}): total=${total}, succeeded=${succeeded}, failed=${failed}"

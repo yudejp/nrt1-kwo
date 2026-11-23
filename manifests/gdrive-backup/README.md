@@ -8,19 +8,30 @@ k3s クラスタ上の Longhorn PVC（CSI `VolumeSnapshot` 経由の `.tar.gz`�
 |---|---|---|---|---|
 | `postgres-backup-daily` | 毎日 02:00 | `default/za-pg-16` (`pg_dumpall`) | `db/postgres/za-pg-16-<stamp>.sql.gz` | 最新 7 世代 |
 | `mongodb-backup-daily` | 毎日 02:30 | `mongodb/mongodb-rs` (`mongodump --oplog`) | `db/mongodb/mongodb-rs-<stamp>.archive.gz` | 最新 7 世代 |
-| `pvc-backup-daily` | 毎日 03:00 | `backup.yude.jp/exclude=true` が無い全 Longhorn PVC | `pvcs/<ns>/<pvc>/<stamp>.tar.gz` | 最新 7 世代 |
+| `pvc-backup-daily` | 毎日 03:00 | `gdrive-backup.k8s.y2e.org/enabled=true` が付いた Longhorn PVC | `pvcs/<ns>/<pvc>/<stamp>.tar.gz` | 最新 7 世代 |
 
-### バックアップ対象外（`backup.yude.jp/exclude=true` 付与済み）
+### バックアップ対象（オプトイン方式・デフォルト無効）
 
-- PostgreSQL PVC: `default/pgdata-za-pg-16-{0,1}`（論理ダンプで取得）
-- MongoDB PVC: `mongodb/{data,logs}-volume-mongodb-rs-{0,1,2}`（論理ダンプで取得）
-- 再構築可能データ: `default/meilisearch`（`manifests/meilisearch/pvc.yaml`）, `default/navidrome-data`（`manifests/navidrome/pvc.yaml`）, `ot-operators/redis-redis-0`
-
-今後新しく作成した Longhorn PVC は **自動的に日次バックアップ対象** になります。除外したい PVC にはマニフェストの `metadata.labels` へ `backup.yude.jp/exclude: "true"` を追加するか、以下を実行してください。
+新規に作成した Longhorn PVC は **デフォルトではバックアップ対象外** です。バックアップ対象にしたい PVC にはマニフェストの `metadata.labels` へ `gdrive-backup.k8s.y2e.org/enabled: "true"` を追加するか、以下を実行してください。
 
 ```bash
-kubectl label pvc <pvc-name> -n <namespace> backup.yude.jp/exclude=true --overwrite
+kubectl label pvc <pvc-name> -n <namespace> gdrive-backup.k8s.y2e.org/enabled=true --overwrite
 ```
+
+現在有効化している対象（17 PVC）:
+- `adguard`: `adguard-certs`, `adguard-conf`, `adguard-work`
+- `crowdsec`: `crowdsec-config-pvc`, `crowdsec-db-pvc`（Helm 管理 PVC のため `apply-pvc-labels.sh` で付与）
+- `default`: `gri-gra`, `gri-tra`, `open-webui-data`, `pgadmin-data-pgadmin-0`（StatefulSet 生成 PVC のため `apply-pvc-labels.sh` で付与）, `redmine`, `vaultwarden-vaultwarden-release-0`
+- `gitea`: `gitea-data`
+- `growi`: `growi-uploads`
+- `misskey-y2e-org`: `misskey-files`
+- `sumire`: `sumire-data`, `sumire-opencode-data`
+- `tunwatch`: `tunwatch`
+
+対象外のままにしている PVC:
+- PostgreSQL PVC: `default/pgdata-za-pg-16-{0,1}`（論理ダンプで取得）
+- MongoDB PVC: `mongodb/{data,logs}-volume-mongodb-rs-{0,1,2}`（論理ダンプで取得）
+- 再構築可能データ: `default/meilisearch`, `default/navidrome-data`, `ot-operators/redis-redis-0`
 
 ---
 
@@ -75,7 +86,7 @@ shred -u "$TMP_CONF" 2>/dev/null || rm -f "$TMP_CONF"
 kubectl kustomize manifests/gdrive-backup/ > /dev/null
 kubectl apply -k manifests/gdrive-backup/
 
-# オペレータ管理 PVC を含む除外対象 PVC にラベルを付与
+# オペレータ / Helm 管理 PVC を含む対象 PVC にオプトインラベルを付与
 bash manifests/gdrive-backup/apply-pvc-labels.sh
 
 # 手動テスト実行（Secret 投入後）
