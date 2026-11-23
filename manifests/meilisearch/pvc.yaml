@@ -4,6 +4,7 @@ metadata:
   name: meilisearch
   labels:
     app: meilisearch
+    backup.yude.jp/exclude: "true"
 spec:
   accessModes:
     - ReadWriteOnce

@@ -1,0 +1,397 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-config
+  namespace: backup-system
+data:
+  REMOTE_BASE: "gdrive:k8s-backup"
+  RETENTION_DAILY: "7"
+  SNAPSHOT_CLASS: "longhorn-snap"
+  SCRATCH_STORAGE_CLASS: "longhorn-backup-scratch"
+  READER_IMAGE: "debian:trixie-slim"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-scripts
+  namespace: backup-system
+data:
+  common.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    log() {
+      printf '[%s] %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >&2
+    }
+
+    init_rclone() {
+      if [[ "${SKIP_UPLOAD:-false}" == "true" ]]; then
+        log "SKIP_UPLOAD=true: skipping rclone configuration"
+        return 0
+      fi
+      if [[ ! -f /etc/rclone-secret/rclone.conf ]]; then
+        log "ERROR: /etc/rclone-secret/rclone.conf not found"
+        return 1
+      fi
+      cp /etc/rclone-secret/rclone.conf /tmp/rclone.conf
+      chmod 600 /tmp/rclone.conf
+      export RCLONE_CONFIG=/tmp/rclone.conf
+      export RCLONE_CACHE_DIR=/tmp/rclone-cache
+      mkdir -p "$RCLONE_CACHE_DIR"
+    }
+
+    prune_remote_files() {
+      local remote_dir="$1"
+      local pattern="$2"
+      local keep="$3"
+
+      if [[ "${SKIP_UPLOAD:-false}" == "true" ]]; then
+        return 0
+      fi
+      if ! [[ "$keep" =~ ^[1-9][0-9]*$ ]]; then
+        log "ERROR: invalid retention count: ${keep}"
+        return 1
+      fi
+
+      local files old_files file
+      files="$(rclone lsf "${remote_dir}" --files-only --include "${pattern}" 2>/dev/null | sort -r || true)"
+      if [[ -z "$files" ]]; then
+        return 0
+      fi
+
+      old_files="$(printf '%s\n' "$files" | tail -n +"$((keep + 1))")"
+      if [[ -z "$old_files" ]]; then
+        return 0
+      fi
+
+      while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+        log "Pruning old backup: ${remote_dir}/${file}"
+        rclone deletefile "${remote_dir}/${file}" || log "WARN: failed to prune ${remote_dir}/${file}"
+      done <<< "$old_files"
+    }
+
+  backup-pvcs.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source /scripts/common.sh
+
+    REMOTE_BASE="${REMOTE_BASE:?REMOTE_BASE is required}"
+    BACKUP_SCHEDULE="${BACKUP_SCHEDULE:-daily}"
+    RETENTION_COUNT="${RETENTION_COUNT:-7}"
+    SNAPSHOT_CLASS="${SNAPSHOT_CLASS:-longhorn-snap}"
+    SCRATCH_STORAGE_CLASS="${SCRATCH_STORAGE_CLASS:-longhorn-backup-scratch}"
+    READER_IMAGE="${READER_IMAGE:-debian:trixie-slim}"
+    ONLY_PVC="${ONLY_PVC:-}" # Optional filter "namespace/pvc-name" for targeted tests
+    SKIP_UPLOAD="${SKIP_UPLOAD:-false}"
+
+    init_rclone
+
+    RUN_ID="$(date -u '+%Y%m%d%H%M%S')"
+    STAMP="$(TZ=Asia/Tokyo date '+%Y-%m-%d_%H%M%S')"
+
+    cleanup_stale_resources() {
+      log "Sweeping any stale temporary backup resources from previous runs..."
+      local kind ns name
+      for kind in pod pvc volumesnapshot; do
+        while IFS='|' read -r ns name; do
+          [[ -z "$ns" || -z "$name" ]] && continue
+          log "Deleting stale ${kind}: ${ns}/${name}"
+          kubectl delete "$kind" "$name" -n "$ns" --ignore-not-found --wait=true --timeout=120s || true
+        done < <(kubectl get "$kind" -A -l backup.yude.jp/managed-by=k8s-gdrive-backup \
+          -o jsonpath='{range .items[*]}{.metadata.namespace}{"|"}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+      done
+    }
+
+    cleanup_one() {
+      local ns="$1" pod="$2" clone="$3" snap="$4"
+      log "Cleaning up temporary resources in ${ns} (${pod}, ${clone}, ${snap})"
+      kubectl delete pod "$pod" -n "$ns" --ignore-not-found --wait=true --timeout=180s || true
+      kubectl delete pvc "$clone" -n "$ns" --ignore-not-found --wait=true --timeout=180s || true
+      kubectl delete volumesnapshot "$snap" -n "$ns" --ignore-not-found --wait=true --timeout=180s || true
+    }
+
+    backup_single_pvc() {
+      local ns="$1" pvc="$2" cap="$3"
+      local short_hash snap clone pod remote_dir remote_file
+      short_hash="$(printf '%s' "${ns}/${pvc}" | sha256sum | cut -c1-10)"
+      snap="bk-snap-${short_hash}-${RUN_ID}"
+      clone="bk-pvc-${short_hash}-${RUN_ID}"
+      pod="bk-pod-${short_hash}-${RUN_ID}"
+      remote_dir="${REMOTE_BASE}/pvcs/${ns}/${pvc}"
+      remote_file="${remote_dir}/${STAMP}.tar.gz"
+
+      log "=== Starting PVC backup: ${ns}/${pvc} (capacity=${cap}) ==="
+
+      local rc=0
+      (
+        set -euo pipefail
+        trap 'cleanup_one "$ns" "$pod" "$clone" "$snap"' EXIT
+
+        log "Creating VolumeSnapshot ${ns}/${snap} from PVC ${pvc}"
+        cat <<EOF | kubectl apply -f -
+    apiVersion: snapshot.storage.k8s.io/v1
+    kind: VolumeSnapshot
+    metadata:
+      name: ${snap}
+      namespace: ${ns}
+      labels:
+        backup.yude.jp/temporary: "true"
+        backup.yude.jp/managed-by: "k8s-gdrive-backup"
+    spec:
+      volumeSnapshotClassName: ${SNAPSHOT_CLASS}
+      source:
+        persistentVolumeClaimName: ${pvc}
+    EOF
+
+        log "Waiting for VolumeSnapshot ${ns}/${snap} to become readyToUse..."
+        local ready="" i
+        for i in $(seq 1 180); do
+          ready="$(kubectl get volumesnapshot "$snap" -n "$ns" -o jsonpath='{.status.readyToUse}' 2>/dev/null || true)"
+          if [[ "$ready" == "true" ]]; then
+            break
+          fi
+          sleep 2
+        done
+        if [[ "$ready" != "true" ]]; then
+          log "ERROR: VolumeSnapshot ${ns}/${snap} did not become ready in time"
+          kubectl describe volumesnapshot "$snap" -n "$ns" >&2 || true
+          exit 1
+        fi
+
+        log "Creating temporary 1-replica RWO clone PVC ${ns}/${clone} (${cap})"
+        cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ${clone}
+      namespace: ${ns}
+      labels:
+        backup.yude.jp/temporary: "true"
+        backup.yude.jp/managed-by: "k8s-gdrive-backup"
+    spec:
+      storageClassName: ${SCRATCH_STORAGE_CLASS}
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: ${cap}
+      dataSource:
+        name: ${snap}
+        kind: VolumeSnapshot
+        apiGroup: snapshot.storage.k8s.io
+    EOF
+
+        log "Creating temporary read-only reader Pod ${ns}/${pod}"
+        cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: ${pod}
+      namespace: ${ns}
+      labels:
+        backup.yude.jp/temporary: "true"
+        backup.yude.jp/managed-by: "k8s-gdrive-backup"
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 5
+      containers:
+        - name: reader
+          image: ${READER_IMAGE}
+          command: ["sleep", "7200"]
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: ${clone}
+            readOnly: true
+    EOF
+
+        log "Waiting for reader Pod ${ns}/${pod} to be Ready..."
+        kubectl wait --for=condition=Ready "pod/${pod}" -n "$ns" --timeout=600s
+
+        if [[ "$SKIP_UPLOAD" == "true" ]]; then
+          log "SKIP_UPLOAD=true: verifying tar.gz stream integrity locally..."
+          local entries
+          entries="$(kubectl exec -n "$ns" "$pod" -- \
+            tar --numeric-owner --warning=no-file-ignored -czf - -C /data . \
+            | tar -tzf - | wc -l)"
+          log "Verified stream for ${ns}/${pvc}: ${entries} tar entries"
+        else
+          log "Streaming tar.gz to ${remote_file}.incomplete"
+          if kubectl exec -n "$ns" "$pod" -- \
+            tar --numeric-owner --warning=no-file-ignored -czf - -C /data . \
+            | rclone rcat "${remote_file}.incomplete" \
+                --drive-chunk-size 32M \
+                --drive-stop-on-upload-limit \
+                --retries 3 \
+                --low-level-retries 10 \
+                --stats 60s --stats-one-line --log-level INFO; then
+            log "Finalizing ${remote_file}"
+            rclone moveto "${remote_file}.incomplete" "${remote_file}"
+            prune_remote_files "${remote_dir}" "20*.tar.gz" "${RETENTION_COUNT}"
+          else
+            log "ERROR: stream failed for ${ns}/${pvc}; removing incomplete remote file"
+            rclone deletefile "${remote_file}.incomplete" 2>/dev/null || true
+            exit 1
+          fi
+        fi
+      ) || rc=$?
+
+      if [[ "$rc" -eq 0 ]]; then
+        log "=== Completed PVC backup: ${ns}/${pvc} ==="
+      else
+        log "=== FAILED PVC backup: ${ns}/${pvc} (exit=${rc}) ==="
+      fi
+      return "$rc"
+    }
+
+    cleanup_stale_resources
+
+    total=0
+    succeeded=0
+    failed=0
+    failed_list=""
+
+    while IFS='|' read -r ns name phase sc cap excl tmp sched; do
+      [[ -z "$ns" || -z "$name" ]] && continue
+      [[ "$phase" != "Bound" ]] && continue
+      [[ "$sc" != "longhorn" && "$sc" != "longhorn-static" ]] && continue
+      [[ "$excl" == "true" || "$tmp" == "true" ]] && continue
+
+      sched="${sched:-daily}"
+      [[ "$sched" != "$BACKUP_SCHEDULE" ]] && continue
+
+      if [[ -n "$ONLY_PVC" && "${ns}/${name}" != "$ONLY_PVC" ]]; then
+        continue
+      fi
+
+      total=$((total + 1))
+      if backup_single_pvc "$ns" "$name" "$cap"; then
+        succeeded=$((succeeded + 1))
+      else
+        failed=$((failed + 1))
+        failed_list="${failed_list} ${ns}/${name}"
+      fi
+    done < <(kubectl get pvc -A \
+      -o jsonpath='{range .items[*]}{.metadata.namespace}{"|"}{.metadata.name}{"|"}{.status.phase}{"|"}{.spec.storageClassName}{"|"}{.status.capacity.storage}{"|"}{.metadata.labels.backup\.yude\.jp/exclude}{"|"}{.metadata.labels.backup\.yude\.jp/temporary}{"|"}{.metadata.annotations.backup\.yude\.jp/schedule}{"\n"}{end}' \
+      | sort)
+
+    log "Summary (schedule=${BACKUP_SCHEDULE}): total=${total}, succeeded=${succeeded}, failed=${failed}"
+    if [[ "$failed" -gt 0 ]]; then
+      log "ERROR: Failed PVCs:${failed_list}"
+      exit 1
+    fi
+
+  backup-postgres.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source /scripts/common.sh
+
+    REMOTE_BASE="${REMOTE_BASE:?REMOTE_BASE is required}"
+    RETENTION_COUNT="${RETENTION_COUNT:-7}"
+    PG_HOST="${PG_HOST:-za-pg-16.default.svc.cluster.local}"
+    PG_PORT="${PG_PORT:-5432}"
+    PG_SECRET_NS="${PG_SECRET_NS:-default}"
+    PG_SECRET_NAME="${PG_SECRET_NAME:-postgres.za-pg-16.credentials.postgresql.acid.zalan.do}"
+    SKIP_UPLOAD="${SKIP_UPLOAD:-false}"
+
+    init_rclone
+
+    export PGUSER PGPASSWORD
+    PGUSER="$(kubectl get secret "$PG_SECRET_NAME" -n "$PG_SECRET_NS" -o jsonpath='{.data.username}' | base64 -d)"
+    PGPASSWORD="$(kubectl get secret "$PG_SECRET_NAME" -n "$PG_SECRET_NS" -o jsonpath='{.data.password}' | base64 -d)"
+    export PGHOST="$PG_HOST"
+    export PGPORT="$PG_PORT"
+    export PGSSLMODE="prefer"
+
+    STAMP="$(TZ=Asia/Tokyo date '+%Y-%m-%d_%H%M%S')"
+    REMOTE_DIR="${REMOTE_BASE}/db/postgres"
+    REMOTE_FILE="${REMOTE_DIR}/za-pg-16-${STAMP}.sql.gz"
+
+    log "Starting PostgreSQL logical dump from ${PG_HOST}:${PG_PORT} as ${PGUSER}"
+
+    if [[ "$SKIP_UPLOAD" == "true" ]]; then
+      log "SKIP_UPLOAD=true: verifying pg_dumpall | gzip stream integrity locally..."
+      bytes="$(pg_dumpall --clean --if-exists | gzip -6 | gzip -dc | wc -c)"
+      log "Verified PostgreSQL dump stream: ${bytes} uncompressed SQL bytes"
+      exit 0
+    fi
+
+    if pg_dumpall --clean --if-exists \
+      | gzip -6 \
+      | rclone rcat "${REMOTE_FILE}.incomplete" \
+          --drive-chunk-size 32M \
+          --drive-stop-on-upload-limit \
+          --retries 3 \
+          --low-level-retries 10 \
+          --stats 60s --stats-one-line --log-level INFO; then
+      log "Finalizing ${REMOTE_FILE}"
+      rclone moveto "${REMOTE_FILE}.incomplete" "${REMOTE_FILE}"
+      prune_remote_files "${REMOTE_DIR}" "za-pg-16-20*.sql.gz" "${RETENTION_COUNT}"
+      log "PostgreSQL backup completed: ${REMOTE_FILE}"
+    else
+      log "ERROR: PostgreSQL backup failed; removing incomplete file"
+      rclone deletefile "${REMOTE_FILE}.incomplete" 2>/dev/null || true
+      exit 1
+    fi
+
+  backup-mongodb.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source /scripts/common.sh
+
+    REMOTE_BASE="${REMOTE_BASE:?REMOTE_BASE is required}"
+    RETENTION_COUNT="${RETENTION_COUNT:-7}"
+    MONGO_SECRET_NS="${MONGO_SECRET_NS:-mongodb}"
+    MONGO_SECRET_NAME="${MONGO_SECRET_NAME:-mongodb-rs-admin-admin-user}"
+    SKIP_UPLOAD="${SKIP_UPLOAD:-false}"
+
+    init_rclone
+
+    RAW_URI="$(kubectl get secret "$MONGO_SECRET_NAME" -n "$MONGO_SECRET_NS" -o jsonpath='{.data.connectionString\.standard}' | base64 -d)"
+    # Strip /admin DB path and pass authSource=admin so --oplog dumps ALL databases
+    MONGO_URI="$(printf '%s' "$RAW_URI" | sed 's|/admin?|/?authSource=admin\&|; s|/admin$|/?authSource=admin|')"
+
+    STAMP="$(TZ=Asia/Tokyo date '+%Y-%m-%d_%H%M%S')"
+    REMOTE_DIR="${REMOTE_BASE}/db/mongodb"
+    REMOTE_FILE="${REMOTE_DIR}/mongodb-rs-${STAMP}.archive.gz"
+
+    log "Starting MongoDB logical dump (all databases + oplog)"
+
+    if [[ "$SKIP_UPLOAD" == "true" ]]; then
+      log "SKIP_UPLOAD=true: verifying mongodump --oplog --archive --gzip stream integrity locally..."
+      bytes="$(mongodump --uri="$MONGO_URI" --readPreference=secondaryPreferred --oplog --archive --gzip | gzip -dc | wc -c)"
+      log "Verified MongoDB dump stream: ${bytes} uncompressed archive bytes"
+      exit 0
+    fi
+
+    if mongodump --uri="$MONGO_URI" --readPreference=secondaryPreferred --oplog --archive --gzip \
+      | rclone rcat "${REMOTE_FILE}.incomplete" \
+          --drive-chunk-size 32M \
+          --drive-stop-on-upload-limit \
+          --retries 3 \
+          --low-level-retries 10 \
+          --stats 60s --stats-one-line --log-level INFO; then
+      log "Finalizing ${REMOTE_FILE}"
+      rclone moveto "${REMOTE_FILE}.incomplete" "${REMOTE_FILE}"
+      prune_remote_files "${REMOTE_DIR}" "mongodb-rs-20*.archive.gz" "${RETENTION_COUNT}"
+      log "MongoDB backup completed: ${REMOTE_FILE}"
+    else
+      log "ERROR: MongoDB backup failed; removing incomplete file"
+      rclone deletefile "${REMOTE_FILE}.incomplete" 2>/dev/null || true
+      exit 1
+    fi

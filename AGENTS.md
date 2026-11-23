@@ -103,6 +103,7 @@ Deleting a pod managed by Zalando/VM/MongoDB operator will cause an immediate re
 | vmagent-agent | vm | VM operator CR (VMAgent) | Scrapes → Grafana Cloud remote write |
 | vlagent-logs | vm | VM operator CR (VLAgent) | DaemonSet, collects logs → vector-loki |
 | gri | default | Deployment | Network grapher, uses Tailscale hostAliases for on-prem device IPs |
+| gdrive-backup | backup-system | CronJobs (`pvc`, `postgres`, `mongodb`) | Daily Longhorn PVC CSI snapshot `.tar.gz` & DB logical dumps to Google Drive (`rclone`) |
 
 ## VictoriaMetrics Vector Alert Filter
 

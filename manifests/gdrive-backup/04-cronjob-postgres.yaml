@@ -1,0 +1,85 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup-daily
+  namespace: backup-system
+  labels:
+    app.kubernetes.io/name: k8s-gdrive-backup
+    app.kubernetes.io/component: postgres-backup
+spec:
+  schedule: "0 2 * * *"
+  timeZone: "Asia/Tokyo"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 7200
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: k8s-gdrive-backup
+            app.kubernetes.io/component: postgres-backup
+        spec:
+          serviceAccountName: postgres-backup
+          restartPolicy: Never
+          initContainers:
+            - name: copy-rclone
+              image: rclone/rclone:1.76.0
+              command: ["sh", "-c", "cp \"$(command -v rclone)\" /tools/rclone && chmod 755 /tools/rclone"]
+              volumeMounts:
+                - name: tools
+                  mountPath: /tools
+            - name: copy-kubectl
+              image: alpine/kubectl:1.37.2
+              command: ["sh", "-c", "cp \"$(command -v kubectl)\" /tools/kubectl && chmod 755 /tools/kubectl"]
+              volumeMounts:
+                - name: tools
+                  mountPath: /tools
+          containers:
+            - name: backup
+              image: postgres:16
+              command: ["/bin/bash", "/scripts/backup-postgres.sh"]
+              envFrom:
+                - configMapRef:
+                    name: backup-config
+              env:
+                - name: PATH
+                  value: "/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+                - name: RETENTION_COUNT
+                  valueFrom:
+                    configMapKeyRef:
+                      name: backup-config
+                      key: RETENTION_DAILY
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              volumeMounts:
+                - name: tools
+                  mountPath: /tools
+                  readOnly: true
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: rclone-secret
+                  mountPath: /etc/rclone-secret
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tools
+              emptyDir: {}
+            - name: scripts
+              configMap:
+                name: backup-scripts
+                defaultMode: 0555
+            - name: rclone-secret
+              secret:
+                secretName: rclone-config
+                defaultMode: 0400
+            - name: tmp
+              emptyDir: {}

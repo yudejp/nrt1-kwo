@@ -3,6 +3,8 @@ kind: PersistentVolumeClaim
 metadata:
   name: navidrome-data
   namespace: default
+  labels:
+    backup.yude.jp/exclude: "true"
 spec:
   storageClassName: longhorn
   accessModes:

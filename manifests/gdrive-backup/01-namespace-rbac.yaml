@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backup-system
+  labels:
+    app.kubernetes.io/name: k8s-gdrive-backup
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pvc-backup
+  namespace: backup-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pvc-backup-runner
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pvc-backup-runner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-backup-runner
+subjects:
+  - kind: ServiceAccount
+    name: pvc-backup
+    namespace: backup-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: postgres-backup
+  namespace: backup-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: postgres-backup-secret-reader
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["postgres.za-pg-16.credentials.postgresql.acid.zalan.do"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: postgres-backup-secret-reader
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: postgres-backup-secret-reader
+subjects:
+  - kind: ServiceAccount
+    name: postgres-backup
+    namespace: backup-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mongodb-backup
+  namespace: backup-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mongodb-backup-secret-reader
+  namespace: mongodb
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["mongodb-rs-admin-admin-user"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mongodb-backup-secret-reader
+  namespace: mongodb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mongodb-backup-secret-reader
+subjects:
+  - kind: ServiceAccount
+    name: mongodb-backup
+    namespace: backup-system
