@@ -1,0 +1,106 @@
+# JSON 6902 patch to run Deployment/sumire with the Antigravity CLI backend
+# instead of the OpenCode sidecar.
+- op: remove
+  path: /spec/template/spec/initContainers
+- op: replace
+  path: /spec/template/spec/containers
+  value:
+    - name: sumire
+      image: ghcr.io/yude/sumire-antigravity:main
+      ports:
+        - name: health
+          containerPort: 8080
+      envFrom:
+        - configMapRef:
+            name: sumire-config
+      env:
+        - name: TZ
+          value: Asia/Tokyo
+        - name: DATA_DIR
+          value: /data
+        - name: MISSKEY_TOKEN_FILE
+          value: /var/run/sumire-secrets/token
+        - name: HOME
+          value: /state
+        - name: XDG_CONFIG_HOME
+          value: /state/config
+        - name: XDG_DATA_HOME
+          value: /state/data
+        - name: XDG_STATE_HOME
+          value: /state/state
+        - name: XDG_CACHE_HOME
+          value: /state/cache
+        - name: ANTIGRAVITY_BIN
+          value: /usr/local/bin/agy
+        - name: ANTIGRAVITY_WORKSPACE
+          value: /workspace
+        - name: ANTIGRAVITY_HOME
+          value: /state
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sumire-gemini
+              key: api-key
+              optional: true
+      startupProbe:
+        httpGet:
+          path: /healthz
+          port: health
+        periodSeconds: 5
+        failureThreshold: 30
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: health
+        periodSeconds: 10
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: health
+        periodSeconds: 20
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: '2'
+          memory: 2Gi
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]
+      volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: antigravity-state
+          mountPath: /state
+        - name: tmp
+          mountPath: /tmp
+        - name: workspace
+          mountPath: /workspace
+          readOnly: true
+        - name: credentials
+          mountPath: /var/run/sumire-secrets
+          readOnly: true
+- op: replace
+  path: /spec/template/spec/volumes
+  value:
+    - name: data
+      persistentVolumeClaim:
+        claimName: sumire-antigravity-data
+    - name: antigravity-state
+      persistentVolumeClaim:
+        claimName: sumire-antigravity-state
+    - name: tmp
+      emptyDir:
+        sizeLimit: 256Mi
+    - name: workspace
+      configMap:
+        name: sumire-antigravity-workspace
+    - name: credentials
+      secret:
+        secretName: sumire-misskey
+        defaultMode: 0440

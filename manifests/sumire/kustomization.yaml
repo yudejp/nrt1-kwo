@@ -4,10 +4,20 @@ resources:
   - namespace.yaml
   - deployment.yaml
   - pvc.yaml
+  - pvc-antigravity.yaml
   - service.yaml
   - cloudflare-ingress.yaml
   - sealedsecret.yaml
   - sealedsecret-groq.yaml
+  # - sealedsecret-gemini.yaml # Optional: playbooks/seal-sumire-gemini-secret.yaml
+
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: sumire
+    path: patch-antigravity.yaml
 
 labels:
   - includeSelectors: true
@@ -19,9 +29,11 @@ configMapGenerator:
     namespace: sumire
     literals:
       - MISSKEY_URL=https://misskey.y2e.org
-      - LLM_MODEL=opencode/flint-40b-free
-      - LLM_FALLBACK_MODELS=groq/openai/gpt-oss-20b
+      - LLM_MODEL=antigravity/gemini-3.8-flash-medium
+      - LLM_FALLBACK_MODELS=
       - GROQ_FREE_TIER_CONFIRMED=true
+      - ANTIGRAVITY_AGENT=
+      - ANTIGRAVITY_EFFORT=
       - DRY_RUN=false
       - POLL_INTERVAL=15s
       - GENERATE_TIMEOUT=3m
@@ -42,9 +54,16 @@ configMapGenerator:
     namespace: sumire
     files:
       - opencode/facts.txt
+  - name: sumire-antigravity-workspace
+    namespace: sumire
+    files:
+      - AGENTS.md=opencode/persona.md
+      - facts.txt=opencode/facts.txt
 
 images:
   - name: ghcr.io/yude/sumire
     digest: sha256:7d43bfffa7b0e2ee72f9a0eca79d61412b28cef2ef95acd68760db2cd31c02f3
   - name: ghcr.io/yude/sumire-opencode
     digest: sha256:2574acbbee17ababbbfd3a32052b5831fa57326e92157dd15bf9577802fb5324
+  - name: ghcr.io/yude/sumire-antigravity
+    newTag: main

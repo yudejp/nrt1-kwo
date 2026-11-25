@@ -144,3 +144,35 @@ status に provider_cooldowns を追加し、両方の待機期限を個別に�
 Service は `publishNotReadyAddresses=true` にし、生成結果が不明で readiness が失敗した場合も Go が動いていれば状態を参照できます。DB を読めない場合は503を返します。
 
 2026-11-17に CI 44088136839 が成功した `e175e91` の Go イメージを配布しました。両 PVC のバックアップと SQLite 検査後、共有セッション・投稿済み状態・待機期限を保持して更新しました。HTTPS の画面と JSON は200、公開経路の操作要求は404または405です。ブラウザーの幅1440px・390pxと15秒の自動更新を確認しました。
+
+## Antigravity CLI バックエンド
+
+`patch-antigravity.yaml` と `pvc-antigravity.yaml` を有効にし、`LLM_MODEL=antigravity/gemini-3.8-flash-medium`（`ghcr.io/yude/sumire-antigravity` 単一コンテナ）で動作する構成を反映しています。既存の OpenCode 用 PVC（`sumire-data`・`sumire-opencode-data`）は保持したまま、Antigravity 用に `sumire-antigravity-data`（`/data`）と `sumire-antigravity-state`（`/state`）を追加しています（いずれも `gdrive-backup.k8s.y2e.org/enabled: "true"` 付与済み）。人格（`opencode/persona.md` → `AGENTS.md`）と公開資料（`opencode/facts.txt`）は既存ファイルを共有します。
+
+### 認証と適用
+
+`yude/sumire` の CI で `ghcr.io/yude/sumire-antigravity` が公開された後（必要に応じて `kustomization.yaml` の digest を固定）、次のいずれかで認証します。
+
+1. **Google アカウント認証（`sumire-antigravity-state` PVC に保存）**:
+
+```bash
+kubectl diff -k manifests/sumire/
+kubectl apply -k manifests/sumire/
+kubectl -n sumire rollout status deployment/sumire
+kubectl -n sumire exec -it deployment/sumire -c sumire -- agy
+kubectl -n sumire exec deployment/sumire -c sumire -- sumire check-antigravity
+```
+
+2. **Gemini API キー認証（`sumire-gemini` SealedSecret）**:
+
+```bash
+ansible-vault create manifests/sumire/vault-gemini.yml --ask-vault-pass
+ANSIBLE_BECOME_ASK_PASS=false ANSIBLE_LOCAL_TEMP=/tmp/sumire-ansible ANSIBLE_REMOTE_TEMP=/tmp/sumire-ansible-remote \
+  ansible-playbook -i localhost, -c local playbooks/seal-sumire-gemini-secret.yaml --ask-vault-pass
+kubectl diff -k manifests/sumire/
+kubectl apply -k manifests/sumire/
+kubectl -n sumire rollout status deployment/sumire
+kubectl -n sumire exec deployment/sumire -c sumire -- sumire check-antigravity
+```
+
+OpenCode 構成へ戻す場合は、`kustomization.yaml` の `patches` をコメントアウトし、`LLM_MODEL=opencode/flint-40b-free`・`LLM_FALLBACK_MODELS=groq/openai/gpt-oss-20b` に戻して適用します。

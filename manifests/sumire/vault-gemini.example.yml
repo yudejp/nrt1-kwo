@@ -1,0 +1,11 @@
+# Reference for `ansible-vault create manifests/sumire/vault-gemini.yml`.
+# Fill the Gemini API key inside the Vault editor. Do not save a plaintext vault-gemini.yml.
+gemini_secret_manifest:
+  apiVersion: v1
+  kind: Secret
+  metadata:
+    name: sumire-gemini
+    namespace: sumire
+  type: Opaque
+  stringData:
+    api-key: ""
