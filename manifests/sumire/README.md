@@ -147,7 +147,7 @@ Service は `publishNotReadyAddresses=true` にし、生成結果が不明で re
 
 ## Antigravity CLI バックエンド
 
-`patch-antigravity.yaml` と `pvc-antigravity.yaml` を有効にし、`LLM_MODEL=antigravity/gemini-3.8-flash-medium`（`ghcr.io/yude/sumire-antigravity` 単一コンテナ）で動作する構成を反映しています。既存の OpenCode 用 PVC（`sumire-data`・`sumire-opencode-data`）は保持したまま、Antigravity 用に `sumire-antigravity-data`（`/data`）と `sumire-antigravity-state`（`/state`）を追加しています（いずれも `gdrive-backup.k8s.y2e.org/enabled: "true"` 付与済み）。人格（`opencode/persona.md` → `AGENTS.md`）と公開資料（`opencode/facts.txt`）は既存ファイルを共有します。
+`patch-antigravity.yaml` と `pvc-antigravity.yaml` を有効にし、`LLM_MODEL=antigravity/gemini-4-neon-high`（`ghcr.io/yude/sumire-antigravity` 単一コンテナ）で動作する構成を反映しています。既存の OpenCode 用 PVC（`sumire-data`・`sumire-opencode-data`）は保持したまま、Antigravity 用に `sumire-antigravity-data`（`/data`）と `sumire-antigravity-state`（`/state`）を追加しています（いずれも `gdrive-backup.k8s.y2e.org/enabled: "true"` 付与済み）。人格（`opencode/persona.md` → `AGENTS.md`）と公開資料（`opencode/facts.txt`）は既存ファイルを共有します。
 
 ### 認証と適用
 

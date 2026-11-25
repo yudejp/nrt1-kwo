@@ -29,7 +29,7 @@ configMapGenerator:
     namespace: sumire
     literals:
       - MISSKEY_URL=https://misskey.y2e.org
-      - LLM_MODEL=antigravity/gemini-3.8-flash-medium
+      - LLM_MODEL=antigravity/gemini-4-neon-high
       - LLM_FALLBACK_MODELS=
       - GROQ_FREE_TIER_CONFIRMED=true
       - ANTIGRAVITY_AGENT=
