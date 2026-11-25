@@ -60,11 +60,11 @@ configMapGenerator:
       - AGENTS.md=opencode/persona.md
       - facts.txt=opencode/facts.txt
 
-# All images were built from 4ae8a72 and verified by CI 45549520068.
+# All images were built from dbef6f2 and verified by CI 45559732427.
 images:
   - name: ghcr.io/yude/sumire
-    digest: sha256:db7ef6b0bfe1fa449bfe64fd2d9a8320fc6aeb58c90bda0740620d6400601b94
+    digest: sha256:0c79d986cbe55f0a1605074a3cdaf52705ed4176ed32600c9507904f1368c40f
   - name: ghcr.io/yude/sumire-opencode
-    digest: sha256:13b17de660ac856631666b1cfbf1310e99a3899d35fef0f5ec472dd887cab814
+    digest: sha256:4853304d18928a91b0bd680e3f445b72308ee396952ca4975297667d6b0a0b27
   - name: ghcr.io/yude/sumire-antigravity
-    digest: sha256:38fe6595776c83192b66b4a4f87c5a9707ed7295516c1b6f9f7d290e78969f36
+    digest: sha256:8ab54f6f83bf13e4bf6bb679e2950de92ad120d14c9e1834178de79abc25ef96
