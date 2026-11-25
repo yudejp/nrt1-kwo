@@ -39,7 +39,7 @@ spec:
                   mountPath: /tools
           containers:
             - name: backup
-              image: mongo:8
+              image: mongo:9
               command: ["/bin/bash", "/scripts/backup-mongodb.sh"]
               envFrom:
                 - configMapRef:
